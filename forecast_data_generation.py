@@ -31,7 +31,7 @@ def generate_baseline_data_ym(num_skus=10, n_months=24, start_ym="2025-01", seed
 
     for sku in skus:
         # Initialize actual value and trend percentage
-        val = 100 + np.random.normal(0, 10)
+        val = 50 + np.random.normal(0, 10)
         trend_pct = np.random.uniform(-0.02, 0.02)  # monthly trend ±2%
 
         for ym in all_months:
