@@ -1,0 +1,26 @@
+Metric,Green,Yellow,Red_Condition
+Mean_Bias,-1.938,1.17,> 1.170
+Tracking_Signal,-4.317,2.7,> 2.700
+Residual Counts,-1.0,2.0,> 2.000
+Area_Under_Sparsification,2.0,43.67,> 43.670
+Data_Anomaly_Rate,0.0,0.0,> 0.000
+Residual_Anomaly_Rate,0.0,0.0,> 0.000
+Mean_Anomaly_Magnitude,48.75,99.25,> 99.250
+Time_to_Detect,2.822,5.5,> 5.500
+Persistence,4.0,9.0,> 9.000
+Velocity_Error,3.0,14.812,> 14.812
+Acceleration_Error,5.025,29.107,> 29.107
+Trend_Change_Delay,0.0,0.27,> 0.270
+Interval_Width,9.345,62.087,> 62.087
+Interval_Score,9.742,127.683,> 127.683
+Winkler_Score,9.742,127.683,> 127.683
+CRPS,1.57,10.555,> 10.555
+Sliding_JSD,0.45,0.53,> 0.530
+PSI,0.22,3.32,> 3.320
+KL_Divergence,0.14,1.8,> 1.800
+Rolling_Error_Var,6.765,395.35,> 395.350
+MMD,0.09,0.22,> 0.220
+Feature_Drift_Rate,0.22,3.32,> 3.320
+Direction_Accuracy,0.897,0.67,< 0.670
+Turning_Point_F1,0.67,0.5,< 0.500
+PICP (%),100.0,90.91,< 90.910
