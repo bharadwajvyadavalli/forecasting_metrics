@@ -191,30 +191,43 @@ def compute_crps(actuals: np.ndarray, preds: np.ndarray) -> float:
     return np.mean(std * (z * (2*norm.cdf(z)-1) + 2*norm.pdf(z) - 1/np.sqrt(np.pi)))
 
 # 5. Distributional Drift & Stability
+from scipy.spatial.distance import jensenshannon
+import numpy as np
+
 def compute_sliding_jsd(
-        actuals: np.ndarray,
-        preds: np.ndarray,
-        w: int = 6,
-        bins: int = 5,
-        eps: float = 1e-8
+    actuals: np.ndarray,
+    preds:   np.ndarray,
+    w:       int     = 12,
+    bins:    int     = None,
+    eps:     float   = 1e-8
 ) -> float:
     """
-    Mean Jensen–Shannon Distance over sliding windows,
-    with fixed bin edges, smoothing, and fewer bins.
+    Compute the average Jensen–Shannon Distance over sliding windows.
+
+    - Window size w (e.g., 12)
+    - Bin count = max(2, w//2) if not provided
+    - Fixed global bin edges from the full series
+    - Pseudocount smoothing (eps) to avoid zeros
     """
-    # 1) shared bin edges on full range
+    assert len(actuals) == len(preds), "actuals and preds must match length"
+    n = len(actuals)
+    if bins is None:
+        bins = max(2, w // 2)
+
+    # Shared bin edges across all windows
     combined = np.concatenate([actuals, preds])
     edges = np.histogram_bin_edges(combined, bins=bins)
 
     jsd_vals = []
-    for i in range(len(actuals) - w + 1):
-        a_slice = actuals[i:i + w]
-        p_slice = preds[i:i + w]
-        ha, _ = np.histogram(a_slice, bins=edges, density=True)
-        hp, _ = np.histogram(p_slice, bins=edges, density=True)
-        # 2) add pseudocount and renormalize
-        ha = ha + eps
-        hp = hp + eps
+    for i in range(n - w + 1):
+        a_slice = actuals[i : i + w]
+        p_slice = preds[i : i + w]
+        ha, _ = np.histogram(a_slice, bins=edges, density=False)
+        hp, _ = np.histogram(p_slice, bins=edges, density=False)
+        # Add pseudocount
+        ha = ha.astype(float) + eps
+        hp = hp.astype(float) + eps
+        # Normalize to probability
         ha /= ha.sum()
         hp /= hp.sum()
         jsd_vals.append(jensenshannon(ha, hp))

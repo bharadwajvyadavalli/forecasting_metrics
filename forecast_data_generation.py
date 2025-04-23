@@ -44,7 +44,12 @@ def generate_baseline_data_ym(
                     "Prediction_Value": actuals[i] * (1 + np.random.uniform(-noise_pct, noise_pct)),
                 })
     df = pd.DataFrame(rows)
-    df["Prediction_Actual"] = df["Actual_Value"]
+
+    # Create a mapping of (SKU, Month) -> Actual
+    actual_lookup = df.set_index(['SKU', 'Actual_Month'])['Actual_Value'].to_dict()
+
+    # Apply the lookup to get Prediction_Actual
+    df['Prediction_Actual'] = df.apply(lambda row: actual_lookup.get((row['SKU'], row['Prediction_Month']), pd.NA),axis=1)
     return df
 
 
@@ -105,6 +110,7 @@ def inject_anomalies_and_bias(
     # finalize
     df["Actual_Value"] = df["Actual_Value"].round().astype(int)
     df["Prediction_Value"] = df["Prediction_Value"].round().astype(int)
+    df["Prediction_Actual"] = df["Prediction_Actual"].round().astype(int)
     df.drop(columns=["Month_Idx", "Bias"], inplace=True)
     return df
 
