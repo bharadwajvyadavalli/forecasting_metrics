@@ -191,16 +191,35 @@ def compute_crps(actuals: np.ndarray, preds: np.ndarray) -> float:
     return np.mean(std * (z * (2*norm.cdf(z)-1) + 2*norm.pdf(z) - 1/np.sqrt(np.pi)))
 
 # 5. Distributional Drift & Stability
-def compute_sliding_jsd(actuals: np.ndarray, preds: np.ndarray, w: int = 6) -> float:
+def compute_sliding_jsd(
+        actuals: np.ndarray,
+        preds: np.ndarray,
+        w: int = 6,
+        bins: int = 5,
+        eps: float = 1e-8
+) -> float:
     """
-    Mean Jensen–Shannon Distance over sliding windows.
+    Mean Jensen–Shannon Distance over sliding windows,
+    with fixed bin edges, smoothing, and fewer bins.
     """
+    # 1) shared bin edges on full range
+    combined = np.concatenate([actuals, preds])
+    edges = np.histogram_bin_edges(combined, bins=bins)
+
     jsd_vals = []
-    for i in range(len(actuals)-w+1):
-        ha, _ = np.histogram(actuals[i:i+w], bins=10, density=True)
-        hp, _ = np.histogram(preds[i:i+w],    bins=10, density=True)
+    for i in range(len(actuals) - w + 1):
+        a_slice = actuals[i:i + w]
+        p_slice = preds[i:i + w]
+        ha, _ = np.histogram(a_slice, bins=edges, density=True)
+        hp, _ = np.histogram(p_slice, bins=edges, density=True)
+        # 2) add pseudocount and renormalize
+        ha = ha + eps
+        hp = hp + eps
+        ha /= ha.sum()
+        hp /= hp.sum()
         jsd_vals.append(jensenshannon(ha, hp))
-    return np.mean(jsd_vals)
+
+    return float(np.mean(jsd_vals))
 
 def compute_psi(actuals: np.ndarray, preds: np.ndarray, bins: int = 10) -> float:
     """
