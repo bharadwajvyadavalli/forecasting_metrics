@@ -17,6 +17,7 @@ def generate_baseline_data_ym(
     seed=42,
     trend_pct=0.02,
     noise_pct=0.005,          # much smaller noise to boost DirAcc
+    start_counter = 1
 ):
     """
     1) Generates 'Actual' data for each SKU over `n_months`.
@@ -26,7 +27,7 @@ def generate_baseline_data_ym(
     np.random.seed(seed)
     months = generate_date_list(start_ym, n_months)
     rows = []
-    for sku in [f"SKU_{i+1}" for i in range(num_skus)]:
+    for sku in [f"SKU_{i + start_counter}" for i in range(num_skus)]:
         base = np.random.uniform(40, 60)
         vals = [base]
         for _ in range(1, n_months):
@@ -108,9 +109,6 @@ def inject_anomalies_and_bias(
             df.at[idx, "Prediction_Value"] *= (1 + np.random.choice([-1,1]) * residual_anomaly_mag)
 
     # finalize
-    df["Actual_Value"] = df["Actual_Value"].round().astype(int)
-    df["Prediction_Value"] = df["Prediction_Value"].round().astype(int)
-    df["Prediction_Actual"] = df["Prediction_Actual"].round().astype(int)
     df.drop(columns=["Month_Idx", "Bias"], inplace=True)
     return df
 
@@ -121,16 +119,21 @@ def generate_full_sample(
     start_ym="2025-01",
     seed=42
 ):
-    base = generate_baseline_data_ym(
-        num_skus=num_skus,
-        n_months=n_months,
-        start_ym=start_ym,
-        seed=seed
-    )
-    return inject_anomalies_and_bias(base, seed=seed+1)
+    num_anomalies_skus, normal_skus = 10, 5
+    anomalies_skus = generate_baseline_data_ym(num_skus=num_anomalies_skus, n_months=n_months, start_ym=start_ym, seed=seed, start_counter = 1)
+    anomalies_skus =  inject_anomalies_and_bias(anomalies_skus, seed=seed+1)
+    normal_skus = generate_baseline_data_ym(num_skus= normal_skus, n_months=n_months, start_ym=start_ym, seed=seed,
+                                               start_counter= num_anomalies_skus)
 
+    df = pd.concat([anomalies_skus, normal_skus], ignore_index=True)
+    return df
 
 if __name__ == "__main__":
     df = generate_full_sample()
+    #
+    df["Actual_Value"] = df["Actual_Value"].round().astype(int)
+    df["Prediction_Value"] = df["Prediction_Value"].round().astype(int)
+    df["Prediction_Actual"] = df["Prediction_Actual"].round().astype(int)
+    #
     df.to_csv("sample_data.csv", index=False)
     print("→ sample_data.csv generated with higher DirAcc, clear bias blocks, and stable 2% anomaly rates.")

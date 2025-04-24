@@ -194,45 +194,25 @@ def compute_crps(actuals: np.ndarray, preds: np.ndarray) -> float:
 from scipy.spatial.distance import jensenshannon
 import numpy as np
 
-def compute_sliding_jsd(
-    actuals: np.ndarray,
-    preds:   np.ndarray,
-    w:       int     = 12,
-    bins:    int     = None,
-    eps:     float   = 1e-8
-) -> float:
-    """
-    Compute the average Jensen–Shannon Distance over sliding windows.
+import numpy as np
+from scipy.spatial.distance import jensenshannon
 
-    - Window size w (e.g., 12)
-    - Bin count = max(2, w//2) if not provided
-    - Fixed global bin edges from the full series
-    - Pseudocount smoothing (eps) to avoid zeros
-    """
-    assert len(actuals) == len(preds), "actuals and preds must match length"
-    n = len(actuals)
-    if bins is None:
-        bins = max(2, w // 2)
+def compute_sliding_jsd(actuals, window_size = 4, bins = 6):
+    jsd_scores = []
+    for i in range(len(actuals) - 2 * window_size + 1):
+        window1 = actuals[i:i + window_size]
+        window2 = actuals[i + window_size:i + 2 * window_size]
 
-    # Shared bin edges across all windows
-    combined = np.concatenate([actuals, preds])
-    edges = np.histogram_bin_edges(combined, bins=bins)
+        p, _ = np.histogram(window1, bins=bins, density=True)
+        q, _ = np.histogram(window2, bins=bins, density=True)
 
-    jsd_vals = []
-    for i in range(n - w + 1):
-        a_slice = actuals[i : i + w]
-        p_slice = preds[i : i + w]
-        ha, _ = np.histogram(a_slice, bins=edges, density=False)
-        hp, _ = np.histogram(p_slice, bins=edges, density=False)
-        # Add pseudocount
-        ha = ha.astype(float) + eps
-        hp = hp.astype(float) + eps
-        # Normalize to probability
-        ha /= ha.sum()
-        hp /= hp.sum()
-        jsd_vals.append(jensenshannon(ha, hp))
+        p = p / (p.sum() + 1e-12)
+        q = q / (q.sum() + 1e-12)
 
-    return float(np.mean(jsd_vals))
+        jsd = jensenshannon(p, q, base=2)
+        jsd_scores.append(jsd)
+
+    return np.mean(jsd_scores)
 
 def compute_psi(actuals: np.ndarray, preds: np.ndarray, bins: int = 10) -> float:
     """

@@ -23,7 +23,7 @@ if __name__ == '__main__':
             #'Residual Counts': compute_residual_counts(y_true, y_pred),
             #'Area_Under_Sparsification': compute_area_under_sparsification(y_true, y_pred),
             # 2. Outlier & Anomaly
-            'Data_Anomaly_Rate': compute_data_anomaly_rate(base_actuals),
+            'Data_Anomaly_Rate': compute_data_anomaly_rate(y_true),
             'Residual_Anomaly_Rate': compute_residual_anomaly_rate(y_true, y_pred),
             #'Mean_Anomaly_Magnitude': compute_mean_anomaly_magnitude(y_true, y_pred),
             #'Time_to_Detect': compute_time_to_detect(y_true, y_pred),
@@ -41,7 +41,7 @@ if __name__ == '__main__':
             #'Winkler_Score': compute_winkler_score(y_true, y_pred),
             'CRPS': compute_crps(y_true, y_pred),
             # 5. Distributional Drift & Stability
-            'Sliding_JSD': compute_sliding_jsd(y_true, y_pred)
+            'Sliding_JSD': compute_sliding_jsd(y_true)
             #'PSI': compute_psi(y_true, y_pred),
             #'KL_Divergence': compute_kl_divergence(y_true, y_pred),
             #'Rolling_Error_Var': compute_rolling_error_variance(y_true, y_pred),
