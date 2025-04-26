@@ -13,3 +13,4 @@ __pycache__/lag_based_predictions.cpython-312.pyc
 __pycache__/metrics_calculator.cpython-312.pyc
 __pycache__/thresholds.cpython-312.pyc
 __pycache__/visualization.cpython-312.pyc
+output/

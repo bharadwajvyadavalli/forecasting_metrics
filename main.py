@@ -6,8 +6,10 @@ through multiple metric dimensions, with clear explanations of each metric's
 importance and business relevance.
 
 Usage:
-    python main.py [--data=sample_data.csv] [--output=output]
+    python main.py [--data=PATH_TO_DATA] [--output=output]
 """
+import warnings
+warnings.filterwarnings('ignore')
 
 import os
 import argparse
@@ -20,16 +22,15 @@ import visualization as viz
 import thresholds as th
 import lag_based_predictions as lag
 
-
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Forecast Metrics Analysis')
-    parser.add_argument('--data', type=str, default='sample_data.csv',
-                        help='Path to forecast data CSV (default: sample_data.csv)')
+    parser.add_argument('--data', type=str, default=None,
+                        help='Path to forecast data CSV (if not provided, sample data will be generated in output folder)')
     parser.add_argument('--output', type=str, default='output',
                         help='Directory to save output (default: output)')
     parser.add_argument('--generate', action='store_true',
-                        help='Generate new sample data')
+                        help='Generate new sample data (even if existing data file is specified)')
     return parser.parse_args()
 
 
@@ -71,19 +72,26 @@ def main():
     # Create output directory if it doesn't exist
     os.makedirs(args.output, exist_ok=True)
 
-    # Generate sample data if requested
-    if args.generate:
-        print("Generating sample forecast data...")
+    # Determine data file path
+    if args.data is None:
+        # If no data file specified, use sample_data.csv in the output folder
+        data_path = os.path.join(args.output, "sample_data.csv")
+    else:
+        data_path = args.data
+
+    # Generate sample data if requested, if no data file exists, or if default path is used
+    if args.generate or not os.path.exists(data_path) or args.data is None:
+        print(f"Generating sample forecast data to {data_path}...")
         data = generate_forecast_data()
-        data.to_csv(args.data, index=False)
-        print(f"Sample data saved to {args.data}")
+        data.to_csv(data_path, index=False)
+        print(f"Sample data saved to {data_path}")
 
     # Explain metrics and their business relevance
     explain_metrics()
 
     # Initialize metrics calculator
-    print(f"\nAnalyzing forecast data from {args.data}...")
-    calculator = metrics_calculator.MetricsCalculator(args.data)
+    print(f"\nAnalyzing forecast data from {data_path}...")
+    calculator = metrics_calculator.MetricsCalculator(data_path)
 
     # Compute metrics and thresholds
     metrics_df = calculator.compute_metrics()

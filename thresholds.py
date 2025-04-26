@@ -67,35 +67,70 @@ def calculate_thresholds(
 
     # Process error metrics (lower is better)
     for m in error_metrics:
+        if m not in metrics_df.columns:
+            continue
+
         series = metrics_df[m].dropna()
+        if series.empty:
+            continue
 
         # Apply absolute value for symmetric metrics
         if m.lower() in symmetric_lower:
             series = series.abs()
 
-        # Calculate percentiles
-        q_low, q_high = series.quantile(percentiles)
+        try:
+            # Calculate percentiles
+            q_low = float(series.quantile(percentiles[0]))
+            q_high = float(series.quantile(percentiles[1]))
 
-        global_rows.append({
-            'Metric': m,
-            'Green': round(q_low, 3),
-            'Yellow': round(q_high, 3),
-            'Red_Condition': f'> {q_high:.3f}',
-            'Business_Impact': get_metric_impact(m)
-        })
+            global_rows.append({
+                'Metric': m,
+                'Green': round(q_low, 3),
+                'Yellow': round(q_high, 3),
+                'Red_Condition': f'> {q_high:.3f}',
+                'Business_Impact': get_metric_impact(m)
+            })
+        except Exception as e:
+            print(f"Error calculating thresholds for {m}: {e}")
+            # Use default values if calculation fails
+            global_rows.append({
+                'Metric': m,
+                'Green': 0.0,
+                'Yellow': 0.5,
+                'Red_Condition': '> 0.500',
+                'Business_Impact': get_metric_impact(m)
+            })
 
     # Process performance metrics (higher is better)
     for m in [m for m in metrics if m.lower() in [p.lower() for p in performance_metrics]]:
-        series = metrics_df[m].dropna()
-        q_low, q_high = series.quantile(percentiles)
+        if m not in metrics_df.columns:
+            continue
 
-        global_rows.append({
-            'Metric': m,
-            'Green': round(q_high, 3),
-            'Yellow': round(q_low, 3),
-            'Red_Condition': f'< {q_low:.3f}',
-            'Business_Impact': get_metric_impact(m)
-        })
+        series = metrics_df[m].dropna()
+        if series.empty:
+            continue
+
+        try:
+            q_low = float(series.quantile(percentiles[0]))
+            q_high = float(series.quantile(percentiles[1]))
+
+            global_rows.append({
+                'Metric': m,
+                'Green': round(q_high, 3),
+                'Yellow': round(q_low, 3),
+                'Red_Condition': f'< {q_low:.3f}',
+                'Business_Impact': get_metric_impact(m)
+            })
+        except Exception as e:
+            print(f"Error calculating thresholds for {m}: {e}")
+            # Use default values if calculation fails
+            global_rows.append({
+                'Metric': m,
+                'Green': 0.6,
+                'Yellow': 0.4,
+                'Red_Condition': '< 0.400',
+                'Business_Impact': get_metric_impact(m)
+            })
 
     global_thresholds = pd.DataFrame(global_rows)
 
@@ -113,22 +148,37 @@ def calculate_thresholds(
                 continue
 
             series = sku_df[m].dropna()
+            if series.empty:
+                continue
 
             # Apply absolute value for symmetric metrics
             if m.lower() in symmetric_lower:
                 series = series.abs()
 
-            # Calculate percentiles
-            q_low, q_high = series.quantile(percentiles)
+            try:
+                # Calculate percentiles
+                q_low = float(series.quantile(percentiles[0]))
+                q_high = float(series.quantile(percentiles[1]))
 
-            sku_rows.append({
-                'SKU': sku,
-                'Metric': m,
-                'Green': round(q_low, 3),
-                'Yellow': round(q_high, 3),
-                'Red_Condition': f'> {q_high:.3f}',
-                'Business_Impact': get_metric_impact(m, sku_df)
-            })
+                sku_rows.append({
+                    'SKU': sku,
+                    'Metric': m,
+                    'Green': round(q_low, 3),
+                    'Yellow': round(q_high, 3),
+                    'Red_Condition': f'> {q_high:.3f}',
+                    'Business_Impact': get_metric_impact(m, sku_df)
+                })
+            except Exception as e:
+                print(f"Error calculating thresholds for {m} with SKU {sku}: {e}")
+                # Use default values if calculation fails
+                sku_rows.append({
+                    'SKU': sku,
+                    'Metric': m,
+                    'Green': 0.0,
+                    'Yellow': 0.5,
+                    'Red_Condition': '> 0.500',
+                    'Business_Impact': get_metric_impact(m, sku_df)
+                })
 
         # Process performance metrics (higher is better)
         for m in [m for m in metrics if m.lower() in [p.lower() for p in performance_metrics]]:
@@ -136,16 +186,32 @@ def calculate_thresholds(
                 continue
 
             series = sku_df[m].dropna()
-            q_low, q_high = series.quantile(percentiles)
+            if series.empty:
+                continue
 
-            sku_rows.append({
-                'SKU': sku,
-                'Metric': m,
-                'Green': round(q_high, 3),
-                'Yellow': round(q_low, 3),
-                'Red_Condition': f'< {q_low:.3f}',
-                'Business_Impact': get_metric_impact(m, sku_df)
-            })
+            try:
+                q_low = float(series.quantile(percentiles[0]))
+                q_high = float(series.quantile(percentiles[1]))
+
+                sku_rows.append({
+                    'SKU': sku,
+                    'Metric': m,
+                    'Green': round(q_high, 3),
+                    'Yellow': round(q_low, 3),
+                    'Red_Condition': f'< {q_low:.3f}',
+                    'Business_Impact': get_metric_impact(m, sku_df)
+                })
+            except Exception as e:
+                print(f"Error calculating thresholds for {m} with SKU {sku}: {e}")
+                # Use default values if calculation fails
+                sku_rows.append({
+                    'SKU': sku,
+                    'Metric': m,
+                    'Green': 0.6,
+                    'Yellow': 0.4,
+                    'Red_Condition': '< 0.400',
+                    'Business_Impact': get_metric_impact(m, sku_df)
+                })
 
     sku_thresholds = pd.DataFrame(sku_rows)
 
@@ -354,62 +420,76 @@ def generate_threshold_report(
         red_condition = thresh.iloc[0]['Red_Condition']
         higher_is_better = '<' in red_condition
 
-        # Get metric statistics
-        metric_mean = metrics_df[metric].mean()
-        metric_min = metrics_df[metric].min()
-        metric_max = metrics_df[metric].max()
+        try:
+            # Calculate key statistics safely
+            metric_values = metrics_df[metric].dropna()
+            if metric_values.empty:
+                # Skip metrics without any data
+                continue
 
-        # Get threshold values
-        green_val = thresh.iloc[0]['Green']
-        yellow_val = thresh.iloc[0]['Yellow']
+            metric_mean = metric_values.mean()
+            metric_min = metric_values.min()
+            metric_max = metric_values.max()
 
-        # Get performance level
-        if higher_is_better:
-            if metric_mean >= green_val:
-                performance = "GREEN"
-            elif metric_mean >= yellow_val:
-                performance = "YELLOW"
+            # Get threshold values
+            green_val = thresh.iloc[0]['Green']
+            yellow_val = thresh.iloc[0]['Yellow']
+
+            # Get performance level
+            if higher_is_better:
+                if metric_mean >= green_val:
+                    performance = "GREEN"
+                elif metric_mean >= yellow_val:
+                    performance = "YELLOW"
+                else:
+                    performance = "RED"
             else:
-                performance = "RED"
-        else:
-            if metric_mean <= green_val:
-                performance = "GREEN"
-            elif metric_mean <= yellow_val:
-                performance = "YELLOW"
+                if metric_mean <= green_val:
+                    performance = "GREEN"
+                elif metric_mean <= yellow_val:
+                    performance = "YELLOW"
+                else:
+                    performance = "RED"
+
+            # Build metric section
+            report.append(f"## {metric} - {performance}")
+            report.append(f"Average: {metric_mean:.3f} (Range: {metric_min:.3f} to {metric_max:.3f})")
+
+            if higher_is_better:
+                report.append(f"Thresholds: Green ≥ {green_val:.3f}, Yellow ≥ {yellow_val:.3f}, Red < {yellow_val:.3f}")
             else:
-                performance = "RED"
+                report.append(f"Thresholds: Green ≤ {green_val:.3f}, Yellow ≤ {yellow_val:.3f}, Red > {yellow_val:.3f}")
 
-        # Build metric section
-        report.append(f"## {metric} - {performance}")
-        report.append(f"Average: {metric_mean:.3f} (Range: {metric_min:.3f} to {metric_max:.3f})")
+            # Add business impact
+            if 'Business_Impact' in thresh.columns:
+                impact = thresh.iloc[0]['Business_Impact']
+                report.append(f"Business Impact: {impact}")
 
-        if higher_is_better:
-            report.append(f"Thresholds: Green ≥ {green_val:.3f}, Yellow ≥ {yellow_val:.3f}, Red < {yellow_val:.3f}")
-        else:
-            report.append(f"Thresholds: Green ≤ {green_val:.3f}, Yellow ≤ {yellow_val:.3f}, Red > {yellow_val:.3f}")
+            # Add SKU breakdown if there are SKUs
+            if 'SKU' in metrics_df.columns:
+                try:
+                    sku_stats = metrics_df.groupby('SKU')[metric].mean().dropna()
 
-        # Add business impact
-        if 'Business_Impact' in thresh.columns:
-            impact = thresh.iloc[0]['Business_Impact']
-            report.append(f"Business Impact: {impact}")
+                    if not sku_stats.empty:
+                        if higher_is_better:
+                            worst_skus = sku_stats.nsmallest(3)
+                            best_skus = sku_stats.nlargest(3)
+                        else:
+                            worst_skus = sku_stats.nlargest(3)
+                            best_skus = sku_stats.nsmallest(3)
 
-        # Add SKU breakdown
-        sku_stats = metrics_df.groupby('SKU')[metric].mean().sort_values()
+                        report.append("\nBest Performing SKUs:")
+                        for sku, value in best_skus.items():
+                            report.append(f"- {sku}: {value:.3f}")
 
-        if higher_is_better:
-            worst_skus = sku_stats.head(3)
-            best_skus = sku_stats.tail(3)
-        else:
-            worst_skus = sku_stats.tail(3)
-            best_skus = sku_stats.head(3)
-
-        report.append("\nBest Performing SKUs:")
-        for sku, value in best_skus.items():
-            report.append(f"- {sku}: {value:.3f}")
-
-        report.append("\nWorst Performing SKUs:")
-        for sku, value in worst_skus.items():
-            report.append(f"- {sku}: {value:.3f}")
+                        report.append("\nWorst Performing SKUs:")
+                        for sku, value in worst_skus.items():
+                            report.append(f"- {sku}: {value:.3f}")
+                except Exception as e:
+                    report.append(f"\nError calculating SKU statistics: {e}")
+        except Exception as e:
+            report.append(f"## {metric} - ERROR")
+            report.append(f"Error calculating statistics: {e}")
 
         report.append("\n" + "-" * 50 + "\n")
 

@@ -358,4 +358,116 @@ def generate_lag_report(
         # Calculate trend
         first_val = lag_avg.iloc[0][metric]
         last_val = lag_avg.iloc[-1][metric]
-        change = last_val
+        change = last_val - first_val
+        pct_change = change / first_val * 100 if first_val != 0 else float('inf')
+
+        # Determine if higher is better
+        higher_is_better = metric.lower() in [m.lower() for m in fm.PERFORMANCE_METRICS]
+
+        # Interpret trend
+        if higher_is_better:
+            if change > 0:
+                trend_desc = "IMPROVING"
+                trend_impact = "POSITIVE"
+            elif change < 0:
+                trend_desc = "DEGRADING"
+                trend_impact = "NEGATIVE"
+            else:
+                trend_desc = "STABLE"
+                trend_impact = "NEUTRAL"
+        else:
+            if change > 0:
+                trend_desc = "INCREASING"
+                trend_impact = "NEGATIVE"
+            elif change < 0:
+                trend_desc = "DECREASING"
+                trend_impact = "POSITIVE"
+            else:
+                trend_desc = "STABLE"
+                trend_impact = "NEUTRAL"
+
+        # Add metric data
+        report.append(f"First horizon value: {first_val:.3f}")
+        report.append(f"Last horizon value: {last_val:.3f}")
+        report.append(f"Change: {change:.3f} ({pct_change:.1f}%)")
+        report.append(f"Trend: {trend_desc}")
+        report.append(f"Business Impact: {trend_impact}")
+
+        # Add business interpretation
+        if metric.lower() == 'mean_bias':
+            report.append("\nBusiness Interpretation:")
+            if abs(first_val) < abs(last_val):
+                report.append("Bias increases with forecast horizon, leading to greater inventory imbalances for longer-term forecasts.")
+                report.append("Recommendation: Adjust safety stock levels for longer horizons to compensate for increased bias.")
+            else:
+                report.append("Bias is well-controlled across forecast horizons, maintaining consistent inventory balance.")
+                report.append("Recommendation: Continue current approach with confidence in long-term forecasts.")
+
+        elif metric.lower() == 'direction_accuracy':
+            report.append("\nBusiness Interpretation:")
+            if last_val < 0.5:
+                report.append("Direction accuracy drops below 50% for long horizons, making long-term trend predictions unreliable.")
+                report.append("Recommendation: Limit strategic decisions to shorter horizons where direction accuracy is above 50%.")
+            elif last_val < first_val:
+                report.append("Direction accuracy degrades with longer horizons but remains above chance level.")
+                report.append("Recommendation: Use directional indicators for short-term planning but be cautious with longer horizons.")
+            else:
+                report.append("Direction accuracy is consistent across horizons, providing reliable trend predictions.")
+                report.append("Recommendation: Confidently use trend signals for capacity planning across all horizons.")
+
+        report.append("\n" + "-" * 50 + "\n")
+
+    # Add recommendations section
+    report.append("RECOMMENDATIONS")
+    report.append("-------------------------------------------------")
+
+    # Generate specific recommendations based on metrics
+    bias_metrics = [m for m in metrics if m.lower() in [b.lower() for b in fm.BIAS_METRICS]]
+    if bias_metrics:
+        # Analyze bias trends
+        bias_trends = []
+        for metric in bias_metrics:
+            lag_avg = lag_metrics.groupby('lag')[metric].mean()
+            if lag_avg.iloc[-1] > lag_avg.iloc[0]:
+                bias_trends.append("increasing")
+            elif lag_avg.iloc[-1] < lag_avg.iloc[0]:
+                bias_trends.append("decreasing")
+            else:
+                bias_trends.append("stable")
+
+        # Generate bias recommendations
+        if "increasing" in bias_trends:
+            report.append("1. Adjust confidence intervals for longer horizons to account for increasing bias")
+            report.append("2. Review forecasting models for systematic errors that compound over time")
+            report.append("3. Consider using different models for short-term vs. long-term forecasting")
+        else:
+            report.append("1. Current bias control methods are effective across forecast horizons")
+            report.append("2. Continue monitoring bias trends for early detection of model degradation")
+
+    # Generate performance metric recommendations
+    if "Direction_Accuracy" in metrics or "direction_accuracy" in metrics:
+        metric_name = "Direction_Accuracy" if "Direction_Accuracy" in metrics else "direction_accuracy"
+        lag_avg = lag_metrics.groupby('lag')[metric_name].mean()
+
+        if lag_avg.iloc[-1] < 0.6:
+            report.append("4. For long-term planning, focus on overall magnitude rather than directional changes")
+            report.append("5. Implement a tiered confidence system that reduces reliance on directional accuracy for horizons > 6 months")
+        else:
+            report.append("4. The model provides reliable directional guidance across all horizons")
+            report.append("5. Use directional signals confidently for trend-based decisions")
+
+    # Generate general recommendations
+    report.append("6. Stratify forecast evaluation by horizon, with different metrics emphasized at different horizons")
+    report.append("7. For critical business decisions, weight near-term forecast performance more heavily")
+    report.append("8. Establish horizon-specific thresholds for performance metrics")
+
+    # Join report lines
+    report_text = "\n".join(report)
+
+    # Save to file if requested
+    if output_file:
+        with open(output_file, 'w') as f:
+            f.write(report_text)
+        return output_file
+
+    return report_text

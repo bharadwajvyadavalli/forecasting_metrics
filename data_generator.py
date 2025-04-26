@@ -58,25 +58,28 @@ def generate_forecast_data(
         # Generate forecasts for each month
         for i, am in enumerate(months):
             for h in range(1, 13):  # 12-month forecast horizon
-                if i + h - 1 >= n_months:
+                if i + h >= n_months:
                     break
+                # Get the target (future) month for forecasting
+                pred_month_idx = i + h
+                pred_month = months[pred_month_idx]
+
+                # Generate a forecast for the future month
+                # Base the forecast on the current month's actual value, not the future month's value
+                forecast_value = actuals[i] * (1 + np.random.uniform(-noise_pct, noise_pct))
+
                 rows.append({
                     "SKU": sku,
                     "Actual_Month": am,
                     "Actual_Value": actuals[i],
-                    "Prediction_Month": months[i + h - 1],
-                    "Prediction_Value": actuals[i] * (1 + np.random.uniform(-noise_pct, noise_pct)),
+                    "Prediction_Month": pred_month,
+                    "Prediction_Value": forecast_value,
+                    # Set the Prediction_Actual to the actual value for the prediction month
+                    "Prediction_Actual": actuals[pred_month_idx]
                 })
 
     # Create DataFrame
     df = pd.DataFrame(rows)
-
-    # Add Prediction_Actual column (actual value for the prediction month)
-    actual_lookup = df.set_index(['SKU', 'Actual_Month'])['Actual_Value'].to_dict()
-    df['Prediction_Actual'] = df.apply(
-        lambda row: actual_lookup.get((row['SKU'], row['Prediction_Month']), pd.NA),
-        axis=1
-    )
 
     # Inject anomalies and bias if requested
     if with_anomalies:
