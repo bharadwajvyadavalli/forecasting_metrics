@@ -37,9 +37,8 @@ class MetricsCalculator:
             y_true = grp['Prediction_Actual'].to_numpy()
             y_pred = grp['Prediction_Value'].to_numpy()
 
-            metrics = fm.calculate_all_metrics(y_true, y_pred)
-            metrics['SKU'] = sku
-            metrics['Actual_Month'] = actual_month
+            metrics = {'SKU': sku, 'Actual_Month': actual_month}
+            metrics.update(fm.calculate_all_metrics(y_true, y_pred))
             results.append(metrics)
 
         self.metrics_df = pd.DataFrame(results)
