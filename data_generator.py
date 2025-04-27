@@ -16,7 +16,7 @@ def generate_date_list(start_ym="2025-01", n_months=24):
 
 
 def generate_forecast_data(
-        num_skus=10,
+        num_skus=5,
         n_months=24,
         start_ym="2025-01",
         seed=42,

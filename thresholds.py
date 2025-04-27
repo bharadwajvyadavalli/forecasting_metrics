@@ -202,8 +202,6 @@ def get_metric_impact(metric: str, data: Optional[pd.DataFrame] = None) -> str:
     # Map metrics to their business impacts
     impacts = {
         'mean_bias': 'Affects inventory levels and resource allocation efficiency',
-        'tracking_signal': 'Indicates persistent forecast misalignment requiring model adjustment',
-        'residual_counts': 'Signals systematic over/under-prediction affecting planning reliability',
         'data_anomaly_rate': 'Highlights data quality issues requiring investigation',
         'residual_anomaly_rate': 'Shows forecast sensitivity to outliers affecting reliability',
         'direction_accuracy': 'Critical for trend-based decisions and capacity planning',

@@ -16,21 +16,6 @@ def mean_bias(actuals: np.ndarray, predictions: np.ndarray) -> float:
     return np.mean(predictions - actuals)
 
 
-def tracking_signal(actuals: np.ndarray, predictions: np.ndarray) -> float:
-    """Calculate tracking signal (sum of errors divided by mean absolute error)."""
-    resid = predictions - actuals
-    mad = np.mean(np.abs(resid)) or 1.0  # Avoid division by zero
-    return resid.sum() / mad
-
-
-def residual_counts(actuals: np.ndarray, predictions: np.ndarray) -> int:
-    """Count imbalance between positive and negative residuals."""
-    resid = predictions - actuals
-    pos = int((resid > 0).sum())
-    neg = int((resid < 0).sum())
-    return pos - neg
-
-
 # ANOMALY METRICS
 def data_anomaly_rate(actuals: np.ndarray, k: float = 3.0) -> float:
     """Calculate fraction of actuals where |value - median|/MAD > k."""
@@ -137,7 +122,7 @@ def crps(actuals: np.ndarray, predictions: np.ndarray) -> float:
 
 
 # Define metrics groups for easy reference
-BIAS_METRICS = ['mean_bias', 'tracking_signal', 'residual_counts']
+BIAS_METRICS = ['mean_bias']
 ANOMALY_METRICS = ['data_anomaly_rate', 'residual_anomaly_rate']
 DIRECTIONAL_METRICS = ['direction_accuracy', 'turning_point_f1']
 DISTRIBUTION_METRICS = ['sliding_jsd']
@@ -148,7 +133,7 @@ PERFORMANCE_METRICS = ['direction_accuracy', 'turning_point_f1']  # Higher is be
 ERROR_METRICS = BIAS_METRICS + ANOMALY_METRICS + DISTRIBUTION_METRICS + CALIBRATION_METRICS  # Lower is better
 
 # Metrics where absolute value matters for thresholds
-SYMMETRIC_ERROR_METRICS = ['mean_bias', 'tracking_signal']
+SYMMETRIC_ERROR_METRICS = ['mean_bias']
 
 
 def calculate_all_metrics(actuals: np.ndarray, predictions: np.ndarray) -> dict:
@@ -156,8 +141,6 @@ def calculate_all_metrics(actuals: np.ndarray, predictions: np.ndarray) -> dict:
     return {
         # Bias metrics
         'mean_bias': mean_bias(actuals, predictions),
-        'tracking_signal': tracking_signal(actuals, predictions),
-        'residual_counts': residual_counts(actuals, predictions),
 
         # Anomaly metrics
         'data_anomaly_rate': data_anomaly_rate(actuals),
