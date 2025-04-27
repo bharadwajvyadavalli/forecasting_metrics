@@ -1,8 +1,7 @@
 """
-Forecast Data Generator
+Simplified Forecast Data Generator
 
-This module provides functions to generate synthetic forecast data for testing
-and demonstrating the forecast metrics framework.
+This module provides functions to generate synthetic forecast data.
 """
 
 import numpy as np
@@ -10,7 +9,7 @@ import pandas as pd
 
 
 def generate_date_list(start_ym="2025-01", n_months=24):
-    """Create a list of YYYY-MM strings starting from `start_ym` for `n_months`."""
+    """Create a list of YYYY-MM strings."""
     start = pd.to_datetime(start_ym, format="%Y-%m")
     dr = pd.date_range(start=start, periods=n_months, freq="MS")
     return [d.strftime("%Y-%m") for d in dr]
@@ -25,21 +24,7 @@ def generate_forecast_data(
         noise_pct=0.005,
         with_anomalies=True
 ):
-    """
-    Generate synthetic forecast data with controlled characteristics.
-
-    Parameters:
-        num_skus (int): Number of SKUs to generate
-        n_months (int): Number of months to generate
-        start_ym (str): Starting year-month (YYYY-MM)
-        seed (int): Random seed for reproducibility
-        trend_pct (float): Maximum trend percentage
-        noise_pct (float): Maximum noise percentage
-        with_anomalies (bool): Whether to inject anomalies and bias
-
-    Returns:
-        pd.DataFrame: DataFrame with forecast data
-    """
+    """Generate synthetic forecast data with controlled characteristics."""
     np.random.seed(seed)
     months = generate_date_list(start_ym, n_months)
     rows = []
@@ -65,7 +50,6 @@ def generate_forecast_data(
                 pred_month = months[pred_month_idx]
 
                 # Generate a forecast for the future month
-                # Base the forecast on the current month's actual value, not the future month's value
                 forecast_value = actuals[i] * (1 + np.random.uniform(-noise_pct, noise_pct))
 
                 rows.append({
@@ -74,7 +58,6 @@ def generate_forecast_data(
                     "Actual_Value": actuals[i],
                     "Prediction_Month": pred_month,
                     "Prediction_Value": forecast_value,
-                    # Set the Prediction_Actual to the actual value for the prediction month
                     "Prediction_Actual": actuals[pred_month_idx]
                 })
 
@@ -94,16 +77,7 @@ def generate_forecast_data(
 
 
 def inject_anomalies_and_bias(df, seed=123):
-    """
-    Inject anomalies and bias into forecast data.
-
-    Parameters:
-        df (pd.DataFrame): Baseline forecast data
-        seed (int): Random seed for reproducibility
-
-    Returns:
-        pd.DataFrame: DataFrame with anomalies and bias
-    """
+    """Inject anomalies and bias into forecast data."""
     np.random.seed(seed)
     df = df.copy()
 
@@ -144,6 +118,6 @@ def inject_anomalies_and_bias(df, seed=123):
 
 if __name__ == "__main__":
     # Generate sample data and save to CSV
-    df = generate_forecast_data(num_skus=15)
+    df = generate_forecast_data(num_skus=5)
     df.to_csv("sample_data.csv", index=False)
     print("Sample forecast data generated and saved to sample_data.csv")
