@@ -66,7 +66,7 @@ def main():
     # Calculate lag-based metrics
     print("\nAnalyzing forecast accuracy by forecast horizon...")
     lag_metrics = lag.compute_metrics_by_lag(calculator.data)
-    lag_metrics_by_sku = lag.compute_metrics_by_lag_and_sku(calculator.data)
+    lag_metrics_by_sku = lag.compute_metrics_by_lag_and_sku(calculator.data, timeline_output_file=f"{args.output}/sku_prediction_timeline.csv")
 
     # Save lag-based metrics
     lag_metrics.to_csv(f"{args.output}/lag_metrics.csv", index=False)
