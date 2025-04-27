@@ -72,10 +72,17 @@ def turning_point_f1(actuals: np.ndarray, predictions: np.ndarray) -> float:
 
 
 # DISTRIBUTION METRICS
-def sliding_jsd(actuals: np.ndarray, window_size: int = 4, bins: int = 6) -> float:
-    """Calculate average Jensen-Shannon divergence between sequential time windows."""
+def sliding_jsd(actuals: np.ndarray, window_size: int = 6, bins: int = 12) -> float:
+    """
+    Calculate Jensen-Shannon divergence between sequential windows.
+    Range: 0 (stable) to 1 (highly variable).
+    """
     # Check if we have enough data
     if len(actuals) < 2 * window_size:
+        return 0.0
+
+    # If all values are identical, distribution is perfectly stable
+    if np.all(actuals == actuals[0]):
         return 0.0
 
     jsd_scores = []
@@ -86,16 +93,33 @@ def sliding_jsd(actuals: np.ndarray, window_size: int = 4, bins: int = 6) -> flo
         window1 = actuals[i:i + window_size]
         window2 = actuals[i + window_size:i + 2 * window_size]
 
-        # Create probability distributions using histograms
-        p, _ = np.histogram(window1, bins=bins, density=True)
-        q, _ = np.histogram(window2, bins=bins, density=True)
+        # Create adaptive bin edges based on data range
+        data_min = min(np.min(window1), np.min(window2))
+        data_max = max(np.max(window1), np.max(window2))
 
-        # Normalize to ensure valid probability distributions
-        p = p / (p.sum() + 1e-12)
-        q = q / (q.sum() + 1e-12)
+        # Ensure non-zero range
+        if data_max == data_min:
+            data_max = data_min + 1e-8
 
-        # Calculate Jensen-Shannon divergence
+        bin_edges = np.linspace(data_min, data_max, bins + 1)
+
+        # Calculate histograms with identical bin edges
+        p, _ = np.histogram(window1, bins=bin_edges, density=True)
+        q, _ = np.histogram(window2, bins=bin_edges, density=True)
+
+        # Add small constant to avoid zeros
+        p = p + 1e-10
+        q = q + 1e-10
+
+        # Normalize
+        p = p / p.sum()
+        q = q / q.sum()
+
+        # Calculate JSD
         jsd = jensenshannon(p, q, base=2)
+        if np.isnan(jsd):
+            jsd = 0.0
+
         jsd_scores.append(jsd)
 
     # Return average JSD
@@ -104,21 +128,28 @@ def sliding_jsd(actuals: np.ndarray, window_size: int = 4, bins: int = 6) -> flo
 
 # CALIBRATION METRICS
 def crps(actuals: np.ndarray, predictions: np.ndarray) -> float:
-    """Calculate Continuous Ranked Probability Score."""
-    # Estimate standard deviation of forecast error
-    std = (predictions - actuals).std()
+    """
+    Calculate Continuous Ranked Probability Score for point forecasts.
 
-    # If standard deviation is zero, return mean absolute error
-    if std == 0:
-        return float(np.mean(np.abs(predictions - actuals)))
+    Parameters:
+    actuals: np.ndarray - Array of observed values
+    predictions: np.ndarray - 1D array of mean predictions
+
+    Returns:
+    float: Mean CRPS (single scalar value)
+    """
+    # Estimate standard deviation of forecast error
+    std = max((predictions - actuals).std(), 1e-8)  # Avoid division by zero
 
     # Calculate standardized error
     z = (actuals - predictions) / std
 
     # CRPS formula for normal distribution
-    return std * (z * (2 * norm.cdf(z) - 1)
-               + 2 * norm.pdf(z)
-               - 1 / np.sqrt(np.pi))
+    crps_values = std * (z * (2 * norm.cdf(z) - 1) +
+                         2 * norm.pdf(z) - 1 / np.sqrt(np.pi))
+
+    # Return mean CRPS as a single scalar value
+    return float(np.mean(crps_values))
 
 
 # Define metrics groups for easy reference

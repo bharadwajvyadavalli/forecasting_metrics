@@ -15,7 +15,7 @@ import argparse
 import pandas as pd
 
 import metrics_calculator
-from data_generator import generate_forecast_data
+from data_generator import generate_data
 import lag_based_predictions as lag
 
 def parse_arguments():
@@ -48,7 +48,7 @@ def main():
     # Generate sample data if requested, if no data file exists, or if default path is used
     if args.generate or not os.path.exists(data_path) or args.data is None:
         print(f"Generating sample forecast data to {data_path}...")
-        data = generate_forecast_data()
+        data = generate_data()
         data.to_csv(data_path, index=False)
         print(f"Sample data saved to {data_path}")
 

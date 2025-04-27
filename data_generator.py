@@ -1,7 +1,8 @@
 """
-Simplified Forecast Data Generator
+Enhanced Forecast Data Generator
 
-This module provides functions to generate synthetic forecast data.
+This module generates synthetic forecast data with SKUs that specifically demonstrate
+different forecast quality issues and metrics.
 """
 
 import numpy as np
@@ -15,58 +16,139 @@ def generate_date_list(start_ym="2025-01", n_months=24):
     return [d.strftime("%Y-%m") for d in dr]
 
 
-def generate_forecast_data(
-        num_skus=5,
-        n_months=24,
+def generate_data(
         start_ym="2025-01",
-        seed=42,
-        trend_pct=0.02,
-        noise_pct=0.005,
-        with_anomalies=True
+        n_months=24,
+        seed=42
 ):
-    """Generate synthetic forecast data with controlled characteristics."""
+    """Generate synthetic forecast data with pairs of SKUs highlighting each metric."""
     np.random.seed(seed)
     months = generate_date_list(start_ym, n_months)
     rows = []
 
-    # Create baseline data for each SKU
-    for sku in [f"SKU_{i + 1}" for i in range(num_skus)]:
-        # Generate base value
-        base = np.random.uniform(40, 60)
+    # Create sets of SKUs that demonstrate specific metric properties
+    skus_data = {
+        # Bias metric demonstration
+        "BIAS_Good": {"base": 50, "trend": 0.01, "noise": 0.01, "bias": 0.0},
+        "BIAS_Bad": {"base": 50, "trend": 0.01, "noise": 0.01, "bias": 0.15},  # Consistent over-forecasting
 
-        # Generate time series with trend
-        vals = [base]
-        for _ in range(1, n_months):
-            vals.append(vals[-1] * (1 + np.random.uniform(-trend_pct, trend_pct)))
-        actuals = np.array(vals)
+        # Anomaly metric demonstration
+        "ANOMALY_Good": {"base": 60, "trend": 0.01, "noise": 0.01, "anomaly_rate": 0.0},
+        "ANOMALY_Bad": {"base": 60, "trend": 0.01, "noise": 0.01, "anomaly_rate": 0.25},  # High rate of outliers
+
+        # Direction accuracy demonstration
+        "DIRECTION_Good": {"base": 70, "trend": 0.04, "noise": 0.01, "direction_noise": 0.1},
+        "DIRECTION_Bad": {"base": 70, "trend": 0.04, "noise": 0.01, "direction_noise": 0.7},  # Frequently wrong direction
+
+        # Turning point demonstration
+        "TURNING_Good": {"base": 80, "trend": 0.0, "cycle_amplitude": 15, "noise": 0.02, "turning_noise": 0.1},
+        "TURNING_Bad": {"base": 80, "trend": 0.0, "cycle_amplitude": 15, "noise": 0.02, "turning_noise": 0.9},  # Misses turning points
+
+        # Distribution stability demonstration
+        "DISTRIBUTION_Good": {"base": 90, "trend": 0.01, "noise": 0.02, "distribution_shift": False},
+        "DISTRIBUTION_Bad": {"base": 90, "trend": 0.01, "noise": 0.02, "distribution_shift": True},  # Shifts midway
+
+        # Calibration demonstration
+        "CALIBRATION_Good": {"base": 100, "trend": 0.01, "noise": 0.02, "var_consistency": True},
+        "CALIBRATION_Bad": {"base": 100, "trend": 0.01, "noise": 0.02, "var_consistency": False}  # Inconsistent error variance
+    }
+
+    # Process each SKU
+    for sku, params in skus_data.items():
+        base = params["base"]
+        trend_pct = params.get("trend", 0.01)
+
+        # Generate actuals with appropriate patterns
+        actuals = [base]
+
+        # Add trend
+        for i in range(1, n_months):
+            next_val = actuals[-1] * (1 + np.random.uniform(-trend_pct, trend_pct))
+
+            # Add cycle for turning point SKUs
+            if "TURNING" in sku and "cycle_amplitude" in params:
+                cycle = params["cycle_amplitude"] * np.sin(i * np.pi / 6)  # 12-month cycle
+                next_val += cycle
+
+            # Add distribution shift for distribution SKUs
+            if "DISTRIBUTION" in sku and params.get("distribution_shift", False) and i > n_months // 2:
+                if i == n_months // 2 + 1:  # At midpoint, shift distribution
+                    next_val = next_val * 1.5  # Step change
+
+            actuals.append(next_val)
+
+        actuals = np.array(actuals)
+
+        # Add anomalies for anomaly SKUs
+        if "ANOMALY" in sku and params.get("anomaly_rate", 0) > 0:
+            anomaly_count = int(n_months * params["anomaly_rate"])
+            anomaly_indices = np.random.choice(range(n_months), anomaly_count, replace=False)
+            for idx in anomaly_indices:
+                actuals[idx] = actuals[idx] * (1 + np.random.choice([-1, 1]) * 0.5)  # 50% spikes
 
         # Generate forecasts for each month
         for i, am in enumerate(months):
             for h in range(1, 13):  # 12-month forecast horizon
                 if i + h >= n_months:
                     break
+
                 # Get the target (future) month for forecasting
                 pred_month_idx = i + h
                 pred_month = months[pred_month_idx]
 
-                # Generate a forecast for the future month
-                forecast_value = actuals[i] * (1 + np.random.uniform(-noise_pct, noise_pct))
+                # Base forecast - start with the actual for current month
+                forecast_value = actuals[i]
+
+                # Add basic noise
+                noise_pct = params.get("noise", 0.01)
+                forecast_value = forecast_value * (1 + np.random.uniform(-noise_pct, noise_pct))
+
+                # Add bias for bias SKUs
+                if "BIAS" in sku and "bias" in params:
+                    forecast_value = forecast_value * (1 + params["bias"])
+
+                # Add direction noise for direction SKUs
+                if "DIRECTION" in sku and "direction_noise" in params:
+                    if np.random.random() < params["direction_noise"]:
+                        # Flip the direction
+                        if pred_month_idx > 0 and actuals[pred_month_idx] > actuals[pred_month_idx-1]:
+                            forecast_value = actuals[i] * 0.9  # Predict down when actually up
+                        else:
+                            forecast_value = actuals[i] * 1.1  # Predict up when actually down
+
+                # Add turning point noise for turning point SKUs
+                if "TURNING" in sku and "turning_noise" in params:
+                    # Detect if this is a turning point in actuals
+                    is_turning = False
+                    if pred_month_idx > 1 and pred_month_idx < n_months - 1:
+                        prev_diff = actuals[pred_month_idx] - actuals[pred_month_idx-1]
+                        next_diff = actuals[pred_month_idx+1] - actuals[pred_month_idx]
+                        if np.sign(prev_diff) != np.sign(next_diff):
+                            is_turning = True
+
+                    if is_turning and np.random.random() < params["turning_noise"]:
+                        # Miss the turning point - maintain previous direction
+                        if pred_month_idx > 0:
+                            prev_diff = actuals[pred_month_idx-1] - actuals[pred_month_idx-2] if pred_month_idx > 1 else 0
+                            forecast_value = actuals[pred_month_idx-1] + prev_diff
+
+                # Add calibration issues for calibration SKUs
+                if "CALIBRATION" in sku and not params.get("var_consistency", True):
+                    # Error variance grows with horizon
+                    if h > 6:
+                        forecast_value = forecast_value * (1 + np.random.uniform(-0.2, 0.2))
 
                 rows.append({
                     "SKU": sku,
                     "Actual_Month": am,
-                    "Actual_Value": actuals[i],
+                    "Actual_Value": round(actuals[i]),
                     "Prediction_Month": pred_month,
-                    "Prediction_Value": forecast_value,
-                    "Prediction_Actual": actuals[pred_month_idx]
+                    "Prediction_Value": round(forecast_value),
+                    "Prediction_Actual": round(actuals[pred_month_idx])
                 })
 
     # Create DataFrame
     df = pd.DataFrame(rows)
-
-    # Inject anomalies and bias if requested
-    if with_anomalies:
-        df = inject_anomalies_and_bias(df, seed=seed + 1)
 
     # Round values to integers
     df["Actual_Value"] = df["Actual_Value"].round().astype(int)
@@ -76,48 +158,8 @@ def generate_forecast_data(
     return df
 
 
-def inject_anomalies_and_bias(df, seed=123):
-    """Inject anomalies and bias into forecast data."""
-    np.random.seed(seed)
-    df = df.copy()
-
-    # Calculate month index for each SKU
-    df["Month_Idx"] = df.groupby("SKU")["Actual_Month"].transform(
-        lambda x: pd.Categorical(x, sorted(x.unique())).codes
-    )
-
-    # 1. Apply bias patterns by month index
-    def apply_bias(month_idx):
-        if month_idx < 4:
-            return np.random.uniform(-0.01, 0.01)  # Minimal bias
-        elif month_idx < 9:
-            return np.random.uniform(0.03, 0.05)  # Medium bias
-        else:
-            return np.random.choice([0.1, -0.1])  # Spike bias
-
-    df["Bias"] = df["Month_Idx"].apply(apply_bias)
-    df["Prediction_Value"] *= (1 + df["Bias"])
-
-    # 2. Add data anomalies (2% per month)
-    for m, grp in df.groupby("Month_Idx"):
-        idxs = grp.sample(frac=0.02, random_state=seed + m).index
-        for idx in idxs:
-            df.at[idx, "Actual_Value"] *= (1 + np.random.choice([-1, 1]) * 0.2)
-
-    # 3. Add forecast anomalies (2% per month)
-    for m, grp in df.groupby("Month_Idx"):
-        idxs = grp.sample(frac=0.02, random_state=seed + m + 100).index
-        for idx in idxs:
-            df.at[idx, "Prediction_Value"] *= (1 + np.random.choice([-1, 1]) * 0.2)
-
-    # Clean up temporary columns
-    df.drop(columns=["Month_Idx", "Bias"], inplace=True)
-
-    return df
-
-
 if __name__ == "__main__":
     # Generate sample data and save to CSV
-    df = generate_forecast_data(num_skus=5)
-    df.to_csv("sample_data.csv", index=False)
-    print("Sample forecast data generated and saved to sample_data.csv")
+    df = generate_data()
+    df.to_csv("sample_metric_data.csv", index=False)
+    print("Sample forecast data generated and saved to sample_metric_data.csv")
