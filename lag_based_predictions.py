@@ -80,13 +80,13 @@ def compute_metrics_by_lag(
 
 def compute_metrics_by_lag_and_sku(
         df: pd.DataFrame,
-        metric_fns: Dict[str, Callable] = None
+        metric_fns: Dict[str, Callable] = None,
+        timeline_output_file: str = None
 ) -> pd.DataFrame:
     """
     Compute bias metrics grouped by SKU and forecast lag (horizon).
 
-    Lag represents how many months ahead a prediction was made.
-    For example, prediction in Jan 2025 for Apr 2025 has lag = 3.
+    Can also output a timeline CSV with prediction details if timeline_output_file is provided.
     """
     # Default metric functions if not provided
     if metric_fns is None:
@@ -103,21 +103,40 @@ def compute_metrics_by_lag_and_sku(
 
     # Calculate lag - negate to get positive values
     df['lag'] = -1 * ((df.Actual_Month.dt.year - df.Prediction_Month.dt.year) * 12 +
-                    (df.Actual_Month.dt.month - df.Prediction_Month.dt.month))
+                      (df.Actual_Month.dt.month - df.Prediction_Month.dt.month))
 
     # Filter to include only lags 1-12
-    df = df[df['lag'].between(1, 12)]
+    df_filtered = df[df['lag'].between(1, 12)]
 
+    # If timeline output file is specified, write prediction timeline data
+    if timeline_output_file and not df_filtered.empty:
+        # Create simple timeline dataframe with the required columns
+        timeline = df_filtered.copy()
+
+        # Format date columns and create lag name
+        timeline['Prediction_Month'] = timeline['Prediction_Month'].dt.strftime('%Y-%m')
+        timeline['Actual_Month'] = timeline['Actual_Month'].dt.strftime('%Y-%m')
+        timeline['Lag_Name'] = timeline['lag'].apply(lambda x: f"{x}-month ahead")
+
+        # Select columns - don't try to sort
+        columns = ['SKU', 'Prediction_Month', 'Lag_Name', 'Actual_Month',
+                   'Prediction_Value', 'Prediction_Actual']
+        timeline = timeline[columns]
+
+        # Write to CSV without sorting
+        timeline.to_csv(timeline_output_file, index=False)
+
+    # The rest of the function remains unchanged
     # Create container for results
     rows = []
 
     # Get unique SKUs
-    skus = sorted(df['SKU'].unique())
+    skus = sorted(df_filtered['SKU'].unique())
 
     # Process each SKU
     for sku in skus:
         # Get data for just this SKU
-        sku_data = df[df['SKU'] == sku]
+        sku_data = df_filtered[df_filtered['SKU'] == sku]
 
         # Process lag values from 1 to 12
         for lag_value in range(1, 13):
