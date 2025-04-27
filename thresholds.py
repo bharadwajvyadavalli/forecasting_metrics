@@ -12,6 +12,26 @@ from typing import Dict, List, Tuple, Optional, Union
 import forecast_metrics as fm
 
 
+def _matches_specific_metric(sku: str, metric: str) -> bool:
+    """
+    Check if an SKU is designed to demonstrate a specific metric behavior.
+    Handles both original name format (starting with metric name) and
+    the new anomaly SKUs format.
+    """
+    metric_prefix = metric.split('_')[0].upper()
+
+    # Handle the anomaly case separately (DATA_ANOMALY and RESIDUAL_ANOMALY)
+    if metric.lower() == 'data_anomaly_rate' and sku.startswith('DATA_ANOMALY'):
+        return True
+    elif metric.lower() == 'residual_anomaly_rate' and sku.startswith('RESIDUAL_ANOMALY'):
+        return True
+    # Original naming logic
+    elif sku.startswith(metric_prefix):
+        return True
+
+    return False
+
+
 def calculate_thresholds(
         metrics_df: pd.DataFrame,
         metrics: Optional[List[str]] = None,
@@ -142,15 +162,28 @@ def calculate_thresholds(
 
                 # For metric-specific SKUs, set more appropriate thresholds
                 # This helps highlight issues for demonstration SKUs
-                if sku.startswith(m.split('_')[0].upper()):
-                    if 'Bad' in sku:
-                        # Make thresholds stricter for "Bad" SKUs to ensure they show red flags
-                        q_low = min(q_low, 0.05)
-                        q_high = min(q_high, 0.10)
-                    elif 'Good' in sku:
-                        # Make thresholds more lenient for "Good" SKUs
-                        q_low = max(q_low, 0.15)
-                        q_high = max(q_high, 0.20)
+                if _matches_specific_metric(sku, m):
+                    # For anomaly rates, zero is best and anything above zero is concerning
+                    if m.lower() in ['residual_anomaly_rate', 'data_anomaly_rate']:
+                        if 'Bad' in sku:
+                            # For Bad SKUs, ensure any anomalies trigger a red flag
+                            # Very low threshold - even small anomaly rate is marked as bad
+                            q_low = 0.0  # Green threshold (ideal)
+                            q_high = 0.05  # Yellow threshold (any value above is red)
+                        elif 'Good' in sku:
+                            # For Good SKUs, keep at zero or very close to it
+                            q_low = 0.0  # Green threshold (ideal)
+                            q_high = 0.0  # Yellow threshold (any value above is red)
+                    # For other metrics (not anomaly rates)
+                    else:
+                        if 'Bad' in sku:
+                            # Make thresholds stricter for "Bad" SKUs to ensure they show red flags
+                            q_low = min(q_low, 0.05)
+                            q_high = min(q_high, 0.10)
+                        elif 'Good' in sku:
+                            # Make thresholds more lenient for "Good" SKUs
+                            q_low = max(q_low, 0.15)
+                            q_high = max(q_high, 0.20)
 
                 sku_rows.append({
                     'SKU': sku,
@@ -188,7 +221,7 @@ def calculate_thresholds(
                 q_high = float(series.quantile(percentiles[1]))
 
                 # For metric-specific SKUs, set more appropriate thresholds
-                if sku.startswith(m.split('_')[0].upper()):
+                if _matches_specific_metric(sku, m):
                     if 'Bad' in sku:
                         # Make thresholds stricter for "Bad" SKUs to ensure they show red flags
                         q_high = min(q_high, 0.6)
