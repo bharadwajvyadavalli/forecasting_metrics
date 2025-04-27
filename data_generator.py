@@ -32,9 +32,13 @@ def generate_data(
         "BIAS_Good": {"base": 50, "trend": 0.01, "noise": 0.01, "bias": 0.0},
         "BIAS_Bad": {"base": 50, "trend": 0.01, "noise": 0.01, "bias": 0.15},  # Consistent over-forecasting
 
-        # Anomaly metric demonstration
-        "ANOMALY_Good": {"base": 60, "trend": 0.01, "noise": 0.01, "anomaly_rate": 0.0},
-        "ANOMALY_Bad": {"base": 60, "trend": 0.01, "noise": 0.01, "anomaly_rate": 0.25},  # High rate of outliers
+        # Data Anomaly metric demonstration
+        "DATA_ANOMALY_Good": {"base": 60, "trend": 0.01, "noise": 0.01, "data_anomaly_rate": 0.0},
+        "DATA_ANOMALY_Bad": {"base": 60, "trend": 0.01, "noise": 0.01, "data_anomaly_rate": 0.25},  # High rate of data outliers
+
+        # Residual Anomaly metric demonstration
+        "RESIDUAL_ANOMALY_Good": {"base": 65, "trend": 0.01, "noise": 0.01, "residual_anomaly_rate": 0.0},
+        "RESIDUAL_ANOMALY_Bad": {"base": 65, "trend": 0.01, "noise": 0.01, "residual_anomaly_rate": 0.25},  # High rate of prediction errors
 
         # Direction accuracy demonstration
         "DIRECTION_Good": {"base": 70, "trend": 0.04, "noise": 0.01, "direction_noise": 0.1},
@@ -79,9 +83,9 @@ def generate_data(
 
         actuals = np.array(actuals)
 
-        # Add anomalies for anomaly SKUs
-        if "ANOMALY" in sku and params.get("anomaly_rate", 0) > 0:
-            anomaly_count = int(n_months * params["anomaly_rate"])
+        # Add data anomalies for data anomaly SKUs
+        if "DATA_ANOMALY" in sku and params.get("data_anomaly_rate", 0) > 0:
+            anomaly_count = int(n_months * params["data_anomaly_rate"])
             anomaly_indices = np.random.choice(range(n_months), anomaly_count, replace=False)
             for idx in anomaly_indices:
                 actuals[idx] = actuals[idx] * (1 + np.random.choice([-1, 1]) * 0.5)  # 50% spikes
@@ -137,6 +141,12 @@ def generate_data(
                     # Error variance grows with horizon
                     if h > 6:
                         forecast_value = forecast_value * (1 + np.random.uniform(-0.2, 0.2))
+
+                # Add residual anomaly for residual anomaly SKUs
+                if "RESIDUAL_ANOMALY" in sku and params.get("residual_anomaly_rate", 0) > 0:
+                    if np.random.random() < params["residual_anomaly_rate"]:
+                        # Add large random error to this prediction (not to the actual)
+                        forecast_value = forecast_value * (1 + np.random.choice([-1, 1]) * 0.8)  # 80% error spikes
 
                 rows.append({
                     "SKU": sku,
