@@ -72,58 +72,51 @@ def turning_point_f1(actuals: np.ndarray, predictions: np.ndarray) -> float:
 
 
 # DISTRIBUTION METRICS
-def sliding_jsd(actuals: np.ndarray, window_size: int = 6, bins: int = 12) -> float:
+def distribution_jsd(actuals: np.ndarray, bins: int = 10) -> float:
     """
-    Calculate Jensen-Shannon divergence between sequential windows.
-    Range: 0 (stable) to 1 (highly variable).
+    Calculate Jensen-Shannon divergence between first half and second half
+    of the time series to detect distribution shifts.
+
+    Returns a value between 0 (identical distributions) and 1 (completely different).
     """
     # Check if we have enough data
-    if len(actuals) < 2 * window_size:
+    if len(actuals) < 6:  # Need at least a few points in each half
         return 0.0
 
     # If all values are identical, distribution is perfectly stable
     if np.all(actuals == actuals[0]):
         return 0.0
 
-    jsd_scores = []
+    # Split the time series into first half and second half
+    half_point = len(actuals) // 2
+    first_half = actuals[:half_point]
+    second_half = actuals[half_point:]
 
-    # Calculate JSD for each pair of sequential windows
-    for i in range(len(actuals) - 2 * window_size + 1):
-        # Extract consecutive windows
-        window1 = actuals[i:i + window_size]
-        window2 = actuals[i + window_size:i + 2 * window_size]
+    # Create adaptive bin edges covering both distributions
+    data_min = min(np.min(first_half), np.min(second_half)) * 0.95
+    data_max = max(np.max(first_half), np.max(second_half)) * 1.05
 
-        # Create adaptive bin edges based on data range
-        data_min = min(np.min(window1), np.min(window2))
-        data_max = max(np.max(window1), np.max(window2))
+    # Ensure range isn't zero
+    if data_max == data_min:
+        data_max = data_min + 1e-8
 
-        # Ensure non-zero range
-        if data_max == data_min:
-            data_max = data_min + 1e-8
+    # Calculate histograms with identical bin edges
+    bin_edges = np.linspace(data_min, data_max, bins + 1)
+    p, _ = np.histogram(first_half, bins=bin_edges, density=True)
+    q, _ = np.histogram(second_half, bins=bin_edges, density=True)
 
-        bin_edges = np.linspace(data_min, data_max, bins + 1)
+    # Add small constant to avoid zeros
+    p = p + 1e-10
+    q = q + 1e-10
 
-        # Calculate histograms with identical bin edges
-        p, _ = np.histogram(window1, bins=bin_edges, density=True)
-        q, _ = np.histogram(window2, bins=bin_edges, density=True)
+    # Normalize
+    p = p / p.sum()
+    q = q / q.sum()
 
-        # Add small constant to avoid zeros
-        p = p + 1e-10
-        q = q + 1e-10
+    # Calculate JSD with base 2 (results in 0-1 range)
+    jsd = jensenshannon(p, q, base=2)
 
-        # Normalize
-        p = p / p.sum()
-        q = q / q.sum()
-
-        # Calculate JSD
-        jsd = jensenshannon(p, q, base=2)
-        if np.isnan(jsd):
-            jsd = 0.0
-
-        jsd_scores.append(jsd)
-
-    # Return average JSD
-    return float(np.mean(jsd_scores)) if jsd_scores else 0.0
+    return float(0.0 if np.isnan(jsd) else jsd)
 
 
 # CALIBRATION METRICS
@@ -182,7 +175,7 @@ def calculate_all_metrics(actuals: np.ndarray, predictions: np.ndarray) -> dict:
         'turning_point_f1': turning_point_f1(actuals, predictions),
 
         # Distribution metrics
-        'sliding_jsd': sliding_jsd(actuals),
+        'sliding_jsd': distribution_jsd(actuals),
 
         # Calibration metrics
         'crps': crps(actuals, predictions)
