@@ -31,44 +31,74 @@ def residual_anomaly_rate(actuals: np.ndarray, predictions: np.ndarray, k: float
 
 
 # DIRECTIONAL METRICS
-def direction_accuracy(actuals: np.ndarray, predictions: np.ndarray) -> float:
-    """Calculate percentage of correctly predicted up/down movements."""
-    actual_dir = np.sign(np.diff(actuals, prepend=actuals[0]))
-    pred_dir = np.sign(np.diff(predictions, prepend=predictions[0]))
-    return np.mean(actual_dir == pred_dir)
+def turning_point_f1(actuals: np.ndarray, predictions: np.ndarray, tolerance: int = 1) -> float:
+    """
+    Calculate F1 score for turning point detection with improved algorithm.
 
+    This metric identifies how well a forecast predicts changes in trend direction
+    (turning points). It's particularly valuable for seasonal forecasting as it captures
+    the model's ability to predict when upward trends become downward and vice versa.
 
-def turning_point_f1(actuals: np.ndarray, predictions: np.ndarray) -> float:
-    """Calculate F1 score for turning point detection."""
-    # Calculate directions
-    da = np.sign(np.diff(actuals))
-    dp = np.sign(np.diff(predictions))
+    Parameters:
+    -----------
+    actuals : np.ndarray
+        Array of actual values
+    predictions : np.ndarray
+        Array of predicted values
+    tolerance : int, default=1
+        Number of time steps tolerance for considering a turning point correctly predicted
 
-    # Identify turning points (where direction changes)
-    tp_a = np.concatenate(([False], da[1:] != da[:-1], [False]))
-    tp_p = np.concatenate(([False], dp[1:] != dp[:-1], [False]))
+    Returns:
+    --------
+    float:
+        F1 score for turning point detection (0.0 to 1.0)
+        - 1.0 means all turning points correctly identified with no false positives
+        - 0.0 means no turning points correctly identified or no turning points exist
+    """
+    # Must have at least 3 points to detect turning points
+    if len(actuals) < 3 or len(predictions) < 3:
+        return 0.0
 
-    # Calculate precision and recall
-    true = set(np.where(tp_a)[0])
-    pred = set(np.where(tp_p)[0])
+    # Calculate first differences (directions)
+    actual_diff = np.diff(actuals)
+    pred_diff = np.diff(predictions)
 
-    # Handle edge cases
-    if not true and not pred:
+    # Identify sign changes (turning points)
+    # A turning point occurs where the sign changes from positive to negative or vice versa
+    actual_tp = np.where(np.sign(actual_diff[:-1]) != np.sign(actual_diff[1:]))[0] + 1
+    pred_tp = np.where(np.sign(pred_diff[:-1]) != np.sign(pred_diff[1:]))[0] + 1
+
+    # Handle edge cases - if there are no turning points
+    if len(actual_tp) == 0 and len(pred_tp) == 0:
         return 1.0  # Perfect agreement - no turning points
-    if not true or not pred:
+    if len(actual_tp) == 0 or len(pred_tp) == 0:
         return 0.0  # One has turning points, other doesn't
 
-    # Calculate intersection
-    inter = true & pred
+    # Count true positives with tolerance
+    true_positives = 0
+    used_pred_tp = set()
+
+    for tp in actual_tp:
+        # Check if any predicted turning point is within tolerance
+        for i, p_tp in enumerate(pred_tp):
+            if i in used_pred_tp:
+                continue  # Skip already matched predictions
+
+            if abs(tp - p_tp) <= tolerance:
+                true_positives += 1
+                used_pred_tp.add(i)
+                break
 
     # Calculate precision and recall
-    precision = len(inter) / len(pred)
-    recall = len(inter) / len(true)
+    precision = true_positives / len(pred_tp)
+    recall = true_positives / len(actual_tp)
 
     # Calculate F1 score
     if precision + recall == 0:
         return 0.0
-    return 2 * precision * recall / (precision + recall)
+
+    f1 = 2 * precision * recall / (precision + recall)
+    return f1
 
 
 # DISTRIBUTION METRICS
@@ -148,12 +178,12 @@ def crps(actuals: np.ndarray, predictions: np.ndarray) -> float:
 # Define metrics groups for easy reference
 BIAS_METRICS = ['mean_bias']
 ANOMALY_METRICS = ['data_anomaly_rate', 'residual_anomaly_rate']
-DIRECTIONAL_METRICS = ['direction_accuracy', 'turning_point_f1']
+DIRECTIONAL_METRICS = ['turning_point_f1']
 DISTRIBUTION_METRICS = ['sliding_jsd']
 CALIBRATION_METRICS = ['crps']
 
 # Higher is better vs. lower is better
-PERFORMANCE_METRICS = ['direction_accuracy', 'turning_point_f1']  # Higher is better
+PERFORMANCE_METRICS = ['turning_point_f1']  # Higher is better
 ERROR_METRICS = BIAS_METRICS + ANOMALY_METRICS + DISTRIBUTION_METRICS + CALIBRATION_METRICS  # Lower is better
 
 # Metrics where absolute value matters for thresholds
@@ -171,7 +201,6 @@ def calculate_all_metrics(actuals: np.ndarray, predictions: np.ndarray) -> dict:
         'residual_anomaly_rate': residual_anomaly_rate(actuals, predictions),
 
         # Directional metrics
-        'direction_accuracy': direction_accuracy(actuals, predictions),
         'turning_point_f1': turning_point_f1(actuals, predictions),
 
         # Distribution metrics
