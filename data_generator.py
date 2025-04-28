@@ -40,13 +40,9 @@ def generate_data(
         "RESIDUAL_ANOMALY_Good": {"base": 65, "trend": 0.01, "noise": 0.01, "residual_anomaly_rate": 0.0},
         "RESIDUAL_ANOMALY_Bad": {"base": 65, "trend": 0.01, "noise": 0.01, "residual_anomaly_rate": 0.25},  # High rate of prediction errors
 
-        # Direction accuracy demonstration
-        "DIRECTION_Good": {"base": 70, "trend": 0.04, "noise": 0.01, "direction_noise": 0.1},
-        "DIRECTION_Bad": {"base": 70, "trend": 0.04, "noise": 0.01, "direction_noise": 0.7},  # Frequently wrong direction
-
-        # Turning point demonstration
-        "TURNING_Good": {"base": 80, "trend": 0.0, "cycle_amplitude": 15, "noise": 0.02, "turning_noise": 0.1},
-        "TURNING_Bad": {"base": 80, "trend": 0.0, "cycle_amplitude": 15, "noise": 0.02, "turning_noise": 0.9},  # Misses turning points
+        # Turning point demonstration with improved parameters
+        "TURNING_Good": {"base": 80, "trend": 0.0, "cycle_amplitude": 25, "noise": 0.02, "turning_noise": 0.1},  # More pronounced cycles
+        "TURNING_Bad": {"base": 80, "trend": 0.0, "cycle_amplitude": 25, "noise": 0.02, "turning_noise": 0.95, "delay": 2},  # High turning point miss rate + delay
 
         # Distribution stability demonstration
         "DISTRIBUTION_Good": {"base": 90, "trend": 0.01, "noise": 0.02, "distribution_shift": False},
@@ -125,30 +121,36 @@ def generate_data(
                 if "BIAS" in sku and "bias" in params:
                     forecast_value = forecast_value * (1 + params["bias"])
 
-                # Add direction noise for direction SKUs
-                if "DIRECTION" in sku and "direction_noise" in params:
-                    if np.random.random() < params["direction_noise"]:
-                        # Flip the direction
-                        if pred_month_idx > 0 and actuals[pred_month_idx] > actuals[pred_month_idx-1]:
-                            forecast_value = actuals[i] * 0.9  # Predict down when actually up
-                        else:
-                            forecast_value = actuals[i] * 1.1  # Predict up when actually down
-
                 # Add turning point noise for turning point SKUs
                 if "TURNING" in sku and "turning_noise" in params:
-                    # Detect if this is a turning point in actuals
+                    # Check if we're near a turning point
                     is_turning = False
                     if pred_month_idx > 1 and pred_month_idx < n_months - 1:
-                        prev_diff = actuals[pred_month_idx] - actuals[pred_month_idx-1]
-                        next_diff = actuals[pred_month_idx+1] - actuals[pred_month_idx]
-                        if np.sign(prev_diff) != np.sign(next_diff):
-                            is_turning = True
+                        # Check current and adjacent points for turning points
+                        for offset in [-1, 0, 1]:
+                            check_idx = pred_month_idx + offset
+                            if 1 <= check_idx < n_months - 1:
+                                prev_diff = actuals[check_idx] - actuals[check_idx-1]
+                                next_diff = actuals[check_idx+1] - actuals[check_idx]
+                                if np.sign(prev_diff) != np.sign(next_diff):
+                                    is_turning = True
+                                    break
 
+                    # Apply turning noise and delay for bad SKUs
                     if is_turning and np.random.random() < params["turning_noise"]:
-                        # Miss the turning point - maintain previous direction
-                        if pred_month_idx > 0:
-                            prev_diff = actuals[pred_month_idx-1] - actuals[pred_month_idx-2] if pred_month_idx > 1 else 0
-                            forecast_value = actuals[pred_month_idx-1] + prev_diff
+                        # For bad SKUs, completely miss the turning point
+                        if "Bad" in sku:
+                            if pred_month_idx > 1:
+                                # Apply a delay if specified
+                                delay = params.get("delay", 0)
+                                if pred_month_idx - delay > 0:
+                                    # Continue the previous trend direction instead of changing
+                                    prev_diff = actuals[pred_month_idx-1] - actuals[pred_month_idx-2]
+                                    # Exaggerate the wrong direction
+                                    forecast_value = actuals[pred_month_idx-1] + (prev_diff * 1.5)
+                                else:
+                                    # Fallback if we can't apply delay
+                                    forecast_value = actuals[i] * 0.8
 
                 # Add calibration issues for calibration SKUs
                 if "CALIBRATION" in sku and not params.get("var_consistency", True):
