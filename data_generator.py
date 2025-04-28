@@ -75,9 +75,23 @@ def generate_data(
                 next_val += cycle
 
             # Add distribution shift for distribution SKUs
-            if "DISTRIBUTION" in sku and params.get("distribution_shift", False) and i > n_months // 2:
-                if i == n_months // 2 + 1:  # At midpoint, shift distribution
-                    next_val = next_val * 1.5  # Step change
+            if "DISTRIBUTION" in sku and params.get("distribution_shift", False):
+                if "Bad" in sku and i > n_months // 2:
+                    if i == n_months // 2 + 1:  # Initial step change
+                        next_val = next_val * 1.5  # Step change
+                    else:
+                        # Progressive distribution change after step change
+                        # Add increasing variance and occasional outliers
+                        variance_factor = (i - n_months // 2) / (n_months // 4)  # Grows over time
+                        next_val = next_val * (1 + np.random.normal(0, 0.1 * variance_factor))
+
+                        # Add occasional extreme values (15% chance)
+                        if np.random.random() < 0.15:
+                            next_val = next_val * np.random.choice([0.7, 1.4])
+                # For good SKUs, keep steady and predictable pattern
+                elif "Good" in sku:
+                    # Small, consistent random variations
+                    next_val = next_val * (1 + np.random.normal(0, 0.01))
 
             actuals.append(next_val)
 
