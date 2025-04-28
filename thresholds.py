@@ -39,8 +39,12 @@ def calculate_thresholds(
         symmetric_metrics: Optional[List[str]] = None,
         percentiles: Tuple[float, float] = (0.25, 0.75),
         sku_level: bool = True
-) -> Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame]]:
-    """Calculate performance thresholds for metrics."""
+) -> pd.DataFrame:
+    """
+    Calculate performance thresholds for metrics.
+
+    Returns only SKU-level thresholds now, global thresholds are no longer generated.
+    """
     # Default lists if not provided
     if performance_metrics is None:
         performance_metrics = fm.PERFORMANCE_METRICS
@@ -61,82 +65,6 @@ def calculate_thresholds(
 
     # Convert symmetric metrics to lowercase for case-insensitive matching
     symmetric_lower = [s.lower() for s in symmetric_metrics]
-
-    # Compute global thresholds
-    global_rows = []
-
-    # Process error metrics (lower is better)
-    for m in error_metrics:
-        if m not in metrics_df.columns:
-            continue
-
-        series = metrics_df[m].dropna()
-        if series.empty:
-            continue
-
-        # Apply absolute value for symmetric metrics
-        if m.lower() in symmetric_lower:
-            series = series.abs()
-
-        try:
-            # Calculate percentiles
-            q_low = float(series.quantile(percentiles[0]))
-            q_high = float(series.quantile(percentiles[1]))
-
-            global_rows.append({
-                'Metric': m,
-                'Green': round(q_low, 3),
-                'Yellow': round(q_high, 3),
-                'Red_Condition': f'> {q_high:.3f}',
-                'Business_Impact': get_metric_impact(m)
-            })
-        except Exception as e:
-            print(f"Error calculating thresholds for {m}: {e}")
-            # Use default values if calculation fails
-            global_rows.append({
-                'Metric': m,
-                'Green': 0.0,
-                'Yellow': 0.5,
-                'Red_Condition': '> 0.500',
-                'Business_Impact': get_metric_impact(m)
-            })
-
-    # Process performance metrics (higher is better)
-    for m in [m for m in metrics if m.lower() in [p.lower() for p in performance_metrics]]:
-        if m not in metrics_df.columns:
-            continue
-
-        series = metrics_df[m].dropna()
-        if series.empty:
-            continue
-
-        try:
-            q_low = float(series.quantile(percentiles[0]))
-            q_high = float(series.quantile(percentiles[1]))
-
-            global_rows.append({
-                'Metric': m,
-                'Green': round(q_high, 3),
-                'Yellow': round(q_low, 3),
-                'Red_Condition': f'< {q_low:.3f}',
-                'Business_Impact': get_metric_impact(m)
-            })
-        except Exception as e:
-            print(f"Error calculating thresholds for {m}: {e}")
-            # Use default values if calculation fails
-            global_rows.append({
-                'Metric': m,
-                'Green': 0.6,
-                'Yellow': 0.4,
-                'Red_Condition': '< 0.400',
-                'Business_Impact': get_metric_impact(m)
-            })
-
-    global_thresholds = pd.DataFrame(global_rows)
-
-    # If SKU-level thresholds not needed, return global only
-    if not sku_level:
-        return global_thresholds
 
     # Compute SKU-level thresholds
     sku_rows = []
@@ -255,7 +183,8 @@ def calculate_thresholds(
 
     sku_thresholds = pd.DataFrame(sku_rows)
 
-    return sku_thresholds, global_thresholds
+    # Return only the SKU thresholds
+    return sku_thresholds
 
 
 def get_metric_impact(metric: str, data: Optional[pd.DataFrame] = None) -> str:

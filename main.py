@@ -58,18 +58,16 @@ def main():
 
     # Compute metrics and thresholds
     metrics_df = calculator.compute_metrics()
-    sku_thresholds, global_thresholds = calculator.compute_thresholds()
+    sku_thresholds = calculator.compute_thresholds()  # Now returns only SKU thresholds
 
     # Generate reports
-    calculator.generate_report(args.output)
+    calculator.generate_report(args.output)  # No longer generates global_thresholds or sku_performance_summary
 
-    # Calculate lag-based metrics
-    print("\nAnalyzing forecast accuracy by forecast horizon...")
-    lag_metrics = lag.compute_metrics_by_lag(calculator.data)
+    # Calculate lag-based metrics by SKU only (removed lag_metrics.csv generation)
+    print("\nAnalyzing forecast accuracy by SKU and forecast horizon...")
     lag_metrics_by_sku = lag.compute_metrics_by_lag_and_sku(calculator.data, timeline_output_file=f"{args.output}/sku_prediction_timeline.csv")
 
     # Save lag-based metrics
-    lag_metrics.to_csv(f"{args.output}/lag_metrics.csv", index=False)
     lag_metrics_by_sku.to_csv(f"{args.output}/lag_metrics_by_sku.csv", index=False)
 
     print(f"\nAll reports and data saved to {args.output}/")

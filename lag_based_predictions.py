@@ -9,6 +9,8 @@ from typing import Dict, Callable
 import forecast_metrics as fm
 
 
+# This function is no longer used since we don't generate lag_metrics.csv
+# Keeping it for backwards compatibility in case it might be needed in the future
 def compute_metrics_by_lag(
         df: pd.DataFrame,
         metric_fns: Dict[str, Callable] = None
