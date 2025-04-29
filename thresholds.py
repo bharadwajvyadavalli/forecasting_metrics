@@ -28,9 +28,9 @@ def _matches_specific_metric(sku: str, metric: str) -> bool:
     # Special case for turning point metric
     elif metric.lower() == 'turning_point_f1' and sku.startswith('TURNING'):
         return True
-    # Add specific case for JSD
-    elif metric.lower() == 'sliding_jsd' and (sku.startswith('JSD') or sku.startswith('DISTRIBUTION')):
-        return True
+    # # Add specific case for JSD
+    # elif metric.lower() == 'sliding_jsd' and (sku.startswith('JSD') or sku.startswith('DISTRIBUTION')):
+    #     return True
     # Original naming logic
     elif sku.startswith(metric_prefix):
         return True
@@ -109,16 +109,16 @@ def calculate_thresholds(
                             q_low = 0.0  # Green threshold (ideal)
                             q_high = 0.0  # Yellow threshold (any value above is red)
                     # Add specific handling for sliding_jsd
-                    elif m.lower() == 'sliding_jsd':
-                        if 'Bad' in sku:
-                            # For Bad SKUs, ensure higher JSD values trigger a red flag
-                            # Since JSD ranges from 0 (identical) to 1 (completely different)
-                            q_low = 0.3  # Green threshold (anything below is good)
-                            q_high = 0.5  # Yellow threshold (above 0.5 is red)
-                        elif 'Good' in sku:
-                            # For Good SKUs, keep JSD values very low
-                            q_low = 0.1  # Green threshold
-                            q_high = 0.2  # Yellow threshold
+                    # elif m.lower() == 'sliding_jsd':
+                    #     if 'Bad' in sku:
+                    #         # For Bad SKUs, ensure higher JSD values trigger a red flag
+                    #         # Since JSD ranges from 0 (identical) to 1 (completely different)
+                    #         q_low = 0.3  # Green threshold (anything below is good)
+                    #         q_high = 0.5  # Yellow threshold (above 0.5 is red)
+                    #     elif 'Good' in sku:
+                    #         # For Good SKUs, keep JSD values very low
+                    #         q_low = 0.1  # Green threshold
+                    #         q_high = 0.2  # Yellow threshold
                     # For other metrics (not anomaly rates or JSD)
                     else:
                         if 'Bad' in sku:
