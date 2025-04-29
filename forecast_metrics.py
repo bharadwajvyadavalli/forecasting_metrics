@@ -102,15 +102,13 @@ def turning_point_f1(actuals: np.ndarray, predictions: np.ndarray, tolerance: in
 
 
 # DISTRIBUTION METRICS
-def distribution_jsd(actuals: np.ndarray, bins: int = 10) -> float:
+def distribution_simple(actuals: np.ndarray) -> float:
     """
-    Calculate Jensen-Shannon divergence between first half and second half
-    of the time series to detect distribution shifts.
-
-    Returns a value between 0 (identical distributions) and 1 (completely different).
+    Calculate distribution shift between first and second half of time series.
+    Returns a value between 0 and 1 where higher values indicate greater drift.
     """
     # Check if we have enough data
-    if len(actuals) < 6:  # Need at least a few points in each half
+    if len(actuals) < 6:
         return 0.0
 
     # If all values are identical, distribution is perfectly stable
@@ -122,32 +120,36 @@ def distribution_jsd(actuals: np.ndarray, bins: int = 10) -> float:
     first_half = actuals[:half_point]
     second_half = actuals[half_point:]
 
-    # Create adaptive bin edges covering both distributions
-    data_min = min(np.min(first_half), np.min(second_half)) * 0.95
-    data_max = max(np.max(first_half), np.max(second_half)) * 1.05
+    # Calculate absolute change in mean (normalized)
+    # This detects shifts in the central tendency of the data
+    mean_first = np.mean(first_half)
+    mean_second = np.mean(second_half)
+    mean_max = max(abs(mean_first), abs(mean_second), 1e-8)
+    mean_change = abs(mean_second - mean_first) / mean_max
 
-    # Ensure range isn't zero
-    if data_max == data_min:
-        data_max = data_min + 1e-8
+    # Calculate absolute change in variance (normalized)
+    # This detects changes in the spread or dispersion of the data
+    var_first = np.var(first_half)
+    var_second = np.var(second_half)
+    var_max = max(var_first, var_second, 1e-8)
+    var_change = abs(var_second - var_first) / var_max
 
-    # Calculate histograms with identical bin edges
-    bin_edges = np.linspace(data_min, data_max, bins + 1)
-    p, _ = np.histogram(first_half, bins=bin_edges, density=True)
-    q, _ = np.histogram(second_half, bins=bin_edges, density=True)
+    # Calculate ratio of means to detect step changes
+    # This is particularly effective at catching sudden level shifts
+    if mean_first > 0 and mean_second > 0:
+        mean_ratio = max(mean_second / mean_first, mean_first / mean_second)
+        # Higher ratio indicates larger step change
+        step_change = min((mean_ratio - 1) / 2, 1.0)  # Cap at 1.0
+    else:
+        step_change = 0.0
 
-    # Add small constant to avoid zeros
-    p = p + 1e-10
-    q = q + 1e-10
+    # Combined score with weights for different types of drift
+    # 50% emphasis on step changes (sudden shifts)
+    # 30% emphasis on mean changes (gradual level shifts)
+    # 20% emphasis on variance changes (changes in volatility)
+    score = 0.5 * step_change + 0.3 * mean_change + 0.2 * var_change
 
-    # Normalize
-    p = p / p.sum()
-    q = q / q.sum()
-
-    # Calculate JSD with base 2 (results in 0-1 range)
-    jsd = jensenshannon(p, q, base=2)
-
-    return float(0.0 if np.isnan(jsd) else jsd)
-
+    return min(score, 1.0)
 
 # CALIBRATION METRICS
 def crps(actuals: np.ndarray, predictions: np.ndarray) -> float:
@@ -204,7 +206,7 @@ def calculate_all_metrics(actuals: np.ndarray, predictions: np.ndarray) -> dict:
         'turning_point_f1': turning_point_f1(actuals, predictions),
 
         # Distribution metrics
-        'sliding_jsd': distribution_jsd(actuals),
+        'data_drift': distribution_simple(actuals),
 
         # Calibration metrics
         'crps': crps(actuals, predictions)
