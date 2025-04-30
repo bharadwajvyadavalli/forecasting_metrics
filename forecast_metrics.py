@@ -27,7 +27,10 @@ def data_anomaly_rate(actuals: np.ndarray, k: float = 3.0) -> float:
 def residual_anomaly_rate(actuals: np.ndarray, predictions: np.ndarray, k: float = 3.0) -> float:
     """Calculate fraction of residuals where |(pred-actual - mean)|/std > k."""
     resid = predictions - actuals
-    return np.mean(np.abs(resid - resid.mean()) / (resid.std() or 1.0) > k)
+    #return np.mean(np.abs(resid - resid.mean()) / (resid.std() or 1.0) > k)
+    med = np.median(resid)
+    mad = np.median(np.abs(resid - med)) or 1.0
+    return np.mean(np.abs(resid - med) / mad > k)
 
 
 # DIRECTIONAL METRICS
@@ -154,34 +157,65 @@ def distribution_simple(actuals: np.ndarray) -> float:
 # CALIBRATION METRICS
 def crps(actuals: np.ndarray, predictions: np.ndarray) -> float:
     """
-    Calculate Continuous Ranked Probability Score for point forecasts.
+    Calculate scale-independent Continuous Ranked Probability Score for point forecasts.
+
+    This implementation centers errors to remove bias impact and normalizes
+    by the scale of the data to make the metric comparable across different datasets.
 
     Parameters:
-    actuals: np.ndarray - Array of observed values
-    predictions: np.ndarray - 1D array of mean predictions
+    -----------
+    actuals: np.ndarray
+        Array of observed values
+    predictions: np.ndarray
+        1D array of mean predictions
 
     Returns:
-    float: Mean CRPS (single scalar value)
+    --------
+    float:
+        Scale-independent CRPS (single scalar value)
+
+    Thresholds
+    ---------------
+    Excellent calibration: CRPS ≤ 0.05
+    Good calibration: 0.05 < CRPS ≤ 0.10
+    Acceptable calibration: 0.10 < CRPS ≤ 0.20
+    Poor calibration: 0.20 < CRPS ≤ 0.35
+    Very poor calibration: CRPS > 0.35
     """
-    # Estimate standard deviation of forecast error
-    std = max((predictions - actuals).std(), 1e-8)  # Avoid division by zero
+    # Calculate errors
+    errors = predictions - actuals
 
-    # Calculate standardized error
-    z = (actuals - predictions) / std
+    # Get scale factor for normalization (using mean of absolute actuals)
+    scale_factor = np.mean(np.abs(actuals)) or 1.0  # Avoid division by zero
 
-    # CRPS formula for normal distribution
+    # Estimate standard deviation of forecast error (robust to outliers)
+    median_error = np.median(errors)
+    mad = np.median(np.abs(errors - median_error))
+    # Convert MAD to approximate standard deviation
+    std = mad * 1.4826  # Constant for normal distribution
+    std = max(std, 1e-8)  # Avoid division by zero
+
+    # Center the errors to remove bias impact
+    centered_errors = errors - np.mean(errors)
+
+    # Calculate standardized centered error
+    z = centered_errors / std
+
+    # CRPS formula for normal distribution (centered)
     crps_values = std * (z * (2 * norm.cdf(z) - 1) +
                          2 * norm.pdf(z) - 1 / np.sqrt(np.pi))
 
-    # Return mean CRPS as a single scalar value
-    return float(np.mean(crps_values))
+    # Scale-independent CRPS
+    scale_independent_crps = np.mean(np.abs(crps_values)) / scale_factor
+
+    return float(scale_independent_crps)
 
 
 # Define metrics groups for easy reference
 BIAS_METRICS = ['mean_bias']
 ANOMALY_METRICS = ['data_anomaly_rate', 'residual_anomaly_rate']
 DIRECTIONAL_METRICS = ['turning_point_f1']
-DISTRIBUTION_METRICS = ['sliding_jsd']
+DISTRIBUTION_METRICS = ['data_drift']
 CALIBRATION_METRICS = ['crps']
 
 # Higher is better vs. lower is better

@@ -48,7 +48,7 @@ def main():
     # Generate sample data if requested, if no data file exists, or if default path is used
     if args.generate or not os.path.exists(data_path) or args.data is None:
         print(f"Generating sample forecast data to {data_path}...")
-        data = generate_data()
+        data = generate_data(n_biased_skus_per_level=5, include_standard_skus=True)
         data.to_csv(data_path, index=False)
         print(f"Sample data saved to {data_path}")
 
